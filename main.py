@@ -42,6 +42,9 @@ HEAD_POSE_POINTS = [1, 33, 263, 61, 291, 199]
 MAR_THRESHOLD = 0.25
 MOUTH_OPEN_FRAMES = 0
 YAWN_FRAMES = 15
+DISTRACTION_FRAMES = 0
+DISTRACTION_THRESHOLD = 20
+DISTRACTION_LIMIT = 30
 
 eye_history = deque(maxlen=300)
 
@@ -56,6 +59,9 @@ mp_drawing = mp.solutions.drawing_utils
 
 # Open the camera
 cap = cv2.VideoCapture(0)
+
+cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
 
 cv2.namedWindow("Deteccion Facial", cv2.WINDOW_NORMAL)
 cv2.resizeWindow("Deteccion Facial", 1200, 800)
@@ -219,6 +225,31 @@ while True:
             pitch = angles[0]
             yaw = angles[1]
             roll = angles[2]
+            
+            if abs(yaw) > DISTRACTION_THRESHOLD:
+                DISTRACTION_FRAMES += 1
+            else:
+                DISTRACTION_FRAMES = 0
+                
+            cv2.putText(frame,
+                f"DISTRACTION FRAMES: {DISTRACTION_FRAMES}",
+                (30, 550),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (0,255,255),
+                2)
+            
+            if DISTRACTION_FRAMES >= DISTRACTION_LIMIT:
+                cv2.putText(
+                    frame,
+                    "DISTRACCION DETECTADA",
+                    (30, 600),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    1,
+                    (0,0,255),
+                    3
+                )
+            
             cv2.putText(frame, f"YAW: {yaw:.2f}", (30, 400),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,255), 2)
 
