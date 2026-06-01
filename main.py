@@ -1,6 +1,7 @@
 import cv2
 import mediapipe as mp
 import numpy as np
+from collections import deque
 
 def euclidean_distance(p1, p2):
     return np.linalg.norm(np.array(p1) - np.array(p2))
@@ -37,9 +38,11 @@ MIN_EAR = 0.15
 CLOSED_EYES_FRAMES = 0
 FATIGUE_FRAMES = 15
 MOUTH = [13, 14, 78, 308]
-MAR_THRESHOLD = 0.24
+MAR_THRESHOLD = 0.25
 MOUTH_OPEN_FRAMES = 0
 YAWN_FRAMES = 15
+
+eye_history = deque(maxlen=300)
 
 # Access the module that detects faces with points
 mp_face_mesh = mp.solutions.face_mesh
@@ -52,6 +55,9 @@ mp_drawing = mp.solutions.drawing_utils
 
 # Open the camera
 cap = cv2.VideoCapture(0)
+
+cv2.namedWindow("Deteccion Facial", cv2.WINDOW_NORMAL)
+cv2.resizeWindow("Deteccion Facial", 1200, 800)
 
 while True:
     # Read a frame -> "ret": successful reading | "frame": captured image
@@ -102,11 +108,13 @@ while True:
             
             if ear < EAR_THRESHOLD:
                 CLOSED_EYES_FRAMES += 1
+                eye_history.append(1)
                 cv2.putText(frame, "OJOS CERRADOS", (30, 50),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
             else:
                 CLOSED_EYES_FRAMES = 0
+                eye_history.append(0)
                 cv2.putText(frame, "OJOS ABIERTOS", (30, 50),
                             cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             
@@ -114,7 +122,20 @@ while True:
                 cv2.putText(frame, "FATIGA DETECTADA", (30, 100),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 3)
                 
+            if len(eye_history) > 0:
+                perclos = sum(eye_history) / len(eye_history)
+            else:
+                perclos = 0
             
+            cv2.putText(
+                frame,
+                f"PERCLOS: {perclos:.2f}",
+                (30, 350),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (255,255,255),
+                2
+            )
             mouth_coords = []
 
             for idx in MOUTH:
@@ -125,6 +146,9 @@ while True:
                 cv2.circle(frame, (x, y), 2, (255, 0, 0), -1)
             
             mar = calculate_mar(mouth_coords)
+            
+            cv2.putText(frame, f"MAR: {mar:.2f}", (30, 200),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
             
             cv2.putText(frame, f"MOUTH FRAMES: {MOUTH_OPEN_FRAMES}", (30, 300),
                 cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 0), 2)
