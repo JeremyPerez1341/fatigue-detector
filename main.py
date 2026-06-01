@@ -38,6 +38,7 @@ MIN_EAR = 0.15
 CLOSED_EYES_FRAMES = 0
 FATIGUE_FRAMES = 15
 MOUTH = [13, 14, 78, 308]
+HEAD_POSE_POINTS = [1, 33, 263, 61, 291, 199]
 MAR_THRESHOLD = 0.25
 MOUTH_OPEN_FRAMES = 0
 YAWN_FRAMES = 15
@@ -59,6 +60,15 @@ cap = cv2.VideoCapture(0)
 cv2.namedWindow("Deteccion Facial", cv2.WINDOW_NORMAL)
 cv2.resizeWindow("Deteccion Facial", 1200, 800)
 
+face_3d = np.array([
+    (0.0, 0.0, 0.0),         # nariz
+    (-30.0, -30.0, -30.0),   # ojo izquierdo
+    (30.0, -30.0, -30.0),    # ojo derecho
+    (-25.0, 30.0, -30.0),    # boca izquierda
+    (25.0, 30.0, -30.0),     # boca derecha
+    (0.0, 65.0, -5.0)        # mentón
+], dtype=np.float64)
+
 while True:
     # Read a frame -> "ret": successful reading | "frame": captured image
     ret, frame = cap.read()
@@ -74,6 +84,9 @@ while True:
         for face_landmarks in results.multi_face_landmarks:
             h, w, _ = frame.shape
             
+            # =====================================
+            # EYE DETECTION (EAR)
+            # =====================================
             left_eye_coords = []
             for idx in LEFT_EYE:
                 landmark = face_landmarks.landmark[idx]
@@ -136,8 +149,11 @@ while True:
                 (255,255,255),
                 2
             )
-            mouth_coords = []
 
+            # =====================================
+            # MOUTH DETECTION (MAR)
+            # =====================================
+            mouth_coords = []
             for idx in MOUTH:
                 landmark = face_landmarks.landmark[idx]
                 x, y = int(landmark.x * w), int(landmark.y * h)
@@ -161,6 +177,56 @@ while True:
             if MOUTH_OPEN_FRAMES >= YAWN_FRAMES:
                 cv2.putText(frame, "BOSTEZO DETECTADO", (30, 250),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 0, 0), 2)
+
+            # =====================================
+            # HEAD POSE LANDMARKS
+            # =====================================
+            head_points = []
+
+            for idx in HEAD_POSE_POINTS:
+                landmark = face_landmarks.landmark[idx]
+
+                x = int(landmark.x * w)
+                y = int(landmark.y * h)
+
+                head_points.append((x, y))
+
+                cv2.circle(frame, (x, y), 4, (0, 255, 255), -1)
+                
+            face_2d = np.array(head_points, dtype=np.float64)
+            
+            focal_length = w
+
+            cam_matrix = np.array([
+                [focal_length, 0, w / 2],
+                [0, focal_length, h / 2],
+                [0, 0, 1]
+            ], dtype=np.float64)
+
+            dist_matrix = np.zeros((4, 1), dtype=np.float64)
+            
+            success, rot_vec, trans_vec = cv2.solvePnP(
+                face_3d,
+                face_2d,
+                cam_matrix,
+                dist_matrix
+            )
+            
+            rmat, _ = cv2.Rodrigues(rot_vec)
+
+            angles, _, _, _, _, _ = cv2.RQDecomp3x3(rmat)
+
+            pitch = angles[0]
+            yaw = angles[1]
+            roll = angles[2]
+            cv2.putText(frame, f"YAW: {yaw:.2f}", (30, 400),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,255), 2)
+
+            cv2.putText(frame, f"PITCH: {pitch:.2f}", (30, 450),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,255), 2)
+
+            cv2.putText(frame, f"ROLL: {roll:.2f}", (30, 500),
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,255), 2)
 
     # Open a window
     cv2.imshow("Deteccion Facial", frame)
